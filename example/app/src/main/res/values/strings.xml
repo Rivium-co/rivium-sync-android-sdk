@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RiviumSync Example</string>
+    <string name="tab_crud">CRUD</string>
+    <string name="tab_query">Query</string>
+    <string name="tab_batch">Batch</string>
+    <string name="tab_realtime">Realtime</string>
+    <string name="tab_offline">Offline</string>
+    <string name="create_document">Create Document</string>
+    <string name="title_hint">Enter title</string>
+    <string name="description_hint">Enter description</string>
+    <string name="create">Create</string>
+    <string name="documents">Documents</string>
+    <string name="refresh">Refresh</string>
+    <string name="no_documents">No documents yet. Create one above!</string>
+    <string name="last_result">Last Operation Result</string>
+    <string name="loading">Loading...</string>
+    <string name="read">Read</string>
+    <string name="update">Update</string>
+    <string name="delete">Delete</string>
+</resources>

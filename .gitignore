@@ -1,0 +1,19 @@
+# Build outputs
+.gradle/
+build/
+rivium_sync/build/
+*.aar
+*.apk
+
+# Local configuration
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/

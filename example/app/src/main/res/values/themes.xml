@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RiviumSyncExample" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/emerald_500</item>
+        <item name="colorPrimaryVariant">@color/emerald_700</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/emerald_500</item>
+        <item name="colorSecondaryVariant">@color/emerald_700</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+        <item name="android:statusBarColor">@color/emerald_700</item>
+    </style>
+</resources>
