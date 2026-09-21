@@ -92,7 +92,9 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun getWithOfflineSupport(documentId: String): SyncDocument? {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Ask the server unless we know we are offline; a failure still falls
+        // back to the cache below.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         // Check local cache first
         val cached = localStorageManager?.getDocument(documentId)
@@ -127,18 +129,26 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun getAllWithOfflineSupport(): List<SyncDocument> {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Ask the server unless we know we are offline; a failure still falls
+        // back to the cache below.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         if (isOnline) {
             return try {
-                val docs = apiClient.getAllDocuments(databaseId, id)
-                // Update cache
-                localStorageManager?.saveDocuments(
-                    documents = docs,
-                    databaseId = databaseId,
-                    collectionId = id,
-                    syncStatus = SyncStatus.SYNCED
-                )
+                val snapshot = apiClient.fetchCollection(databaseId, id)
+                val docs = snapshot.documents
+                if (snapshot.complete) {
+                    // Also drops documents deleted on the server since last time.
+                    localStorageManager?.replaceSyncedDocuments(docs, databaseId, id)
+                } else {
+                    // Could not confirm we saw everything: add and update only.
+                    localStorageManager?.saveDocuments(
+                        documents = docs,
+                        databaseId = databaseId,
+                        collectionId = id,
+                        syncStatus = SyncStatus.SYNCED
+                    )
+                }
                 docs
             } catch (e: Exception) {
                 RiviumSyncLogger.w("Failed to get documents online, using cached: ${e.message}")
@@ -354,7 +364,7 @@ internal class SyncCollectionImpl(
                     }
                 }
             } catch (e: Exception) {
-                RiviumSyncLogger.e("Failed to parse change event: payload=$payload", e)
+                RiviumSyncLogger.e("Failed to parse change event (${payload.length} bytes)", e)
             }
         }
 
@@ -455,7 +465,7 @@ internal class SyncCollectionImpl(
                                 }
                             }
 
-                            RiviumSyncLogger.i("listenDocument: Created document from MQTT data: id=${doc.id}, data=${doc.data}, version=${doc.version}")
+                            RiviumSyncLogger.i("listenDocument: Created document from MQTT data: id=${doc.id}, version=${doc.version}")
                             scope.launch(Dispatchers.Main) { callback(doc) }
                         } else {
                             // Fallback to refetch if no data in message

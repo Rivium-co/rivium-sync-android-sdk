@@ -13,7 +13,12 @@ import java.util.concurrent.TimeUnit
 /**
  * HTTP API client for RiviumSync REST operations
  */
-internal class ApiClient(private val config: RiviumSyncConfig, private val userId: String? = null) {
+internal class ApiClient(
+    private val config: RiviumSyncConfig,
+    private val userId: String? = null,
+    /** Signed identity, when the app supplies one. */
+    internal val userTokens: UserTokenStore = UserTokenStore(),
+) {
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -37,18 +42,39 @@ internal class ApiClient(private val config: RiviumSyncConfig, private val userI
             .url(url)
             .header("X-API-Key", config.apiKey)
             .header("Content-Type", "application/json")
-        userId?.let { builder.header("X-User-Id", it) }
+
+        // A signed token decides who the caller is; the plain userId header is
+        // only a fallback, and a project with requireSignedTokens refuses it.
+        val token = userTokens.current()
+        if (token != null) {
+            builder.header("X-User-Token", token)
+        } else {
+            userId?.let { builder.header("X-User-Id", it) }
+        }
         return builder.method(method, requestBody).build()
     }
 
     private inline fun <reified T> executeRequest(request: Request): T {
+        // Never log headers or bodies: they carry the API key, user tokens, the
+        // realtime token and the app's own data.
         RiviumSyncLogger.d("API Request: ${request.method} ${request.url}")
-        RiviumSyncLogger.d("API Key Header: ${request.header("X-API-Key")?.take(20)}...")
 
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: ""
+        var response = client.newCall(request).execute()
+        var responseBody = response.body?.string() ?: ""
 
-        RiviumSyncLogger.d("API Response (${response.code}): $responseBody")
+        // An expired token is transient: get a fresh one and try once more, so
+        // the caller never sees it.
+        if (response.code == 401 && responseBody.contains("token_expired") && request.header("X-User-Token") != null) {
+            RiviumSyncLogger.d("User token expired - refreshing and retrying once")
+            userTokens.invalidate()
+            val refreshed = userTokens.current()
+            if (refreshed != null) {
+                response = client.newCall(
+                    request.newBuilder().header("X-User-Token", refreshed).build()
+                ).execute()
+                responseBody = response.body?.string() ?: ""
+            }
+        }
 
         if (!response.isSuccessful) {
             val errorMsg = try {
@@ -57,8 +83,12 @@ internal class ApiClient(private val config: RiviumSyncConfig, private val userI
             } catch (e: Exception) {
                 "Request failed with status ${response.code}"
             }
+            // The server's short error message only, never the body.
+            RiviumSyncLogger.d("API Response (${response.code}): ${errorMsg.take(200)}")
             throw RiviumSyncException.NetworkException(errorMsg)
         }
+
+        RiviumSyncLogger.d("API Response (${response.code}): ${responseBody.length} bytes")
 
         return gson.fromJson(responseBody, object : TypeToken<T>() {}.type)
     }
@@ -139,11 +169,33 @@ internal class ApiClient(private val config: RiviumSyncConfig, private val userI
     suspend fun getAllDocuments(
         databaseId: String,
         collectionId: String
-    ): List<SyncDocument> = withContext(Dispatchers.IO) {
-        val request = buildRequest("/databases/$databaseId/collections/$collectionId/documents/sdk")
-        val response: ApiResponse<List<Map<String, Any?>>> = executeRequest(request)
-        RiviumSyncLogger.d("getAllDocuments response.data size: ${response.data?.size ?: 0}")
-        response.data?.map { SyncDocument.fromMap(it) } ?: emptyList()
+    ): List<SyncDocument> = fetchCollection(databaseId, collectionId).documents
+
+    /**
+     * Every document in a collection, across as many pages as it takes. The
+     * server answers 100 at a time unless asked otherwise, and this used to
+     * make one request - so getAll() quietly stopped at the first 100.
+     */
+    suspend fun fetchCollection(
+        databaseId: String,
+        collectionId: String
+    ): CollectionSnapshot = withContext(Dispatchers.IO) {
+        val documents = mutableListOf<SyncDocument>()
+        var total: Int? = null
+        while (true) {
+            val request = buildRequest(
+                "/databases/$databaseId/collections/$collectionId/documents/sdk" +
+                    "?skip=${documents.size}&limit=$PAGE_SIZE"
+            )
+            val response: ApiResponse<List<Map<String, Any?>>> = executeRequest(request)
+            val page = response.data?.map { SyncDocument.fromMap(it) } ?: emptyList()
+            documents += page
+            total = response.total
+            // Stop on a short or empty page, or once we have everything.
+            if (page.size < PAGE_SIZE || total == null || documents.size >= total) break
+        }
+        RiviumSyncLogger.d("getAllDocuments fetched ${documents.size} of ${total ?: "?"}")
+        CollectionSnapshot(documents, complete = total != null && documents.size >= total)
     }
 
     suspend fun updateDocument(
@@ -238,6 +290,9 @@ internal class ApiClient(private val config: RiviumSyncConfig, private val userI
         )
     }
 
+    companion object {
+        internal const val PAGE_SIZE = 100
+    }
 }
 
 /**
@@ -246,6 +301,8 @@ internal class ApiClient(private val config: RiviumSyncConfig, private val userI
 internal data class MqttTokenResponse(
     val token: String,
     val expiresIn: String?,
+    /** Topics are namespaced by project; the SDK needs this to build them. */
+    val projectId: String?,
     val mqtt: MqttConnectionInfo?
 )
 
@@ -263,7 +320,19 @@ internal data class ApiResponse<T>(
     val success: Boolean? = null,
     val data: T? = null,
     val message: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    /** Size of the whole result set on paged endpoints. */
+    val total: Int? = null
+)
+
+/**
+ * A whole collection as read from the server. [complete] is true only when the
+ * pages added up to the server's own total, which is what makes it safe to drop
+ * cached rows that were not returned.
+ */
+internal data class CollectionSnapshot(
+    val documents: List<SyncDocument>,
+    val complete: Boolean
 )
 
 /**

@@ -3,6 +3,7 @@ package co.rivium.sync.sdk.offline
 import android.content.Context
 import co.rivium.sync.sdk.SyncDocument
 import co.rivium.sync.sdk.RiviumSyncLogger
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -56,6 +57,33 @@ class LocalStorageManager(context: Context) {
         }
         dao.upsertDocuments(cached)
         RiviumSyncLogger.d("LocalStorage: Saved ${documents.size} documents")
+    }
+
+    /**
+     * Make the cache match a complete read of a collection from the server.
+     *
+     * saveDocuments only adds and updates, so a document deleted on the server
+     * stayed in the cache for good and came back every time the app was
+     * offline. Pass only a COMPLETE snapshot here: anything the server did not
+     * return is dropped. Rows with local changes not yet synced are never
+     * touched, and the whole thing is one transaction so a write cannot slip in
+     * between the read and the delete.
+     */
+    suspend fun replaceSyncedDocuments(
+        documents: List<SyncDocument>,
+        databaseId: String,
+        collectionId: String
+    ) {
+        database.withTransaction {
+            saveDocuments(documents, databaseId, collectionId, SyncStatus.SYNCED)
+            val onServer = documents.mapTo(HashSet()) { it.id }
+            val stale = dao.getSyncedIds(databaseId, collectionId).filterNot { it in onServer }
+            // Stay well under SQLite's bound-variable limit.
+            stale.chunked(500).forEach { dao.deleteSyncedDocuments(it) }
+            if (stale.isNotEmpty()) {
+                RiviumSyncLogger.d("LocalStorage: Dropped ${stale.size} documents deleted on the server")
+            }
+        }
     }
 
     /**

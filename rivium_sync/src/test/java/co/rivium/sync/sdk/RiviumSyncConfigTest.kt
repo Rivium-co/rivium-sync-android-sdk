@@ -5,6 +5,7 @@ import co.rivium.sync.sdk.offline.ConflictChoice
 import co.rivium.sync.sdk.offline.ConflictResolver
 import co.rivium.sync.sdk.offline.ConflictStrategy
 import org.junit.Test
+import org.junit.Assert.assertThrows
 
 /**
  * Comprehensive tests for RiviumSyncConfig and its Builder
@@ -15,26 +16,30 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `builder accepts valid live API key`() {
-        val config = RiviumSyncConfig.Builder("nl_live_abc123xyz789")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123xyz789")
             .build()
 
-        assertThat(config.apiKey).isEqualTo("nl_live_abc123xyz789")
+        assertThat(config.apiKey).isEqualTo("rv_live_abc123xyz789")
     }
 
     @Test
-    fun `builder accepts valid test API key`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123xyz789")
-            .build()
-
-        assertThat(config.apiKey).isEqualTo("nl_test_abc123xyz789")
+    fun `builder rejects legacy nl_ keys`() {
+        // The API stopped issuing these; a legacy key should fail here rather
+        // than at the first request.
+        assertThrows(IllegalArgumentException::class.java) {
+            RiviumSyncConfig.Builder("nl_live_abc123xyz789").build()
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            RiviumSyncConfig.Builder("nl_test_abc123xyz789").build()
+        }
     }
 
     @Test
-    fun `builder accepts nl_live prefix with long key`() {
-        val config = RiviumSyncConfig.Builder("nl_live_abcdefghijklmnop")
+    fun `builder accepts a long live key`() {
+        val config = RiviumSyncConfig.Builder("rv_live_abcdefghijklmnop")
             .build()
 
-        assertThat(config.apiKey).isEqualTo("nl_live_abcdefghijklmnop")
+        assertThat(config.apiKey).isEqualTo("rv_live_abcdefghijklmnop")
     }
 
     // ==================== Invalid API Key Validation ====================
@@ -63,7 +68,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `builder sets correct default values`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .build()
 
         assertThat(config.debugMode).isFalse()
@@ -80,7 +85,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `debugMode can be enabled`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .build()
 
@@ -89,7 +94,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `debugMode can be disabled`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .debugMode(false) // Override
             .build()
@@ -101,7 +106,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `autoReconnect can be disabled`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .autoReconnect(false)
             .build()
 
@@ -110,7 +115,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `autoReconnect can be enabled explicitly`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .autoReconnect(true)
             .build()
 
@@ -121,7 +126,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `offlineEnabled can be enabled`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineEnabled(true)
             .build()
 
@@ -130,7 +135,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `offlineEnabled defaults to false`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .build()
 
         assertThat(config.offlineEnabled).isFalse()
@@ -140,7 +145,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `offlineCacheSizeMb accepts valid positive value`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(50)
             .build()
 
@@ -149,7 +154,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `offlineCacheSizeMb accepts large value`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(1000)
             .build()
 
@@ -158,7 +163,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `offlineCacheSizeMb accepts minimum value of 1`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(1)
             .build()
 
@@ -167,14 +172,14 @@ class RiviumSyncConfigTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `offlineCacheSizeMb rejects negative value`() {
-        RiviumSyncConfig.Builder("nl_test_abc123")
+        RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(-1)
             .build()
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `offlineCacheSizeMb rejects zero`() {
-        RiviumSyncConfig.Builder("nl_test_abc123")
+        RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(0)
             .build()
     }
@@ -183,7 +188,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `syncOnReconnect can be disabled`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .syncOnReconnect(false)
             .build()
 
@@ -192,7 +197,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `syncOnReconnect defaults to true`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .build()
 
         assertThat(config.syncOnReconnect).isTrue()
@@ -202,7 +207,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `conflictStrategy can be set to SERVER_WINS`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictStrategy(ConflictStrategy.SERVER_WINS)
             .build()
 
@@ -211,7 +216,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `conflictStrategy can be set to CLIENT_WINS`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictStrategy(ConflictStrategy.CLIENT_WINS)
             .build()
 
@@ -220,7 +225,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `conflictStrategy can be set to MANUAL`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictStrategy(ConflictStrategy.MANUAL)
             .build()
 
@@ -229,7 +234,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `conflictStrategy can be set to MERGE`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictStrategy(ConflictStrategy.MERGE)
             .build()
 
@@ -244,7 +249,7 @@ class RiviumSyncConfigTest {
             Pair(ConflictChoice.USE_LOCAL, null)
         }
 
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictResolver(resolver)
             .build()
 
@@ -253,7 +258,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `conflictResolver defaults to null`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .build()
 
         assertThat(config.conflictResolver).isNull()
@@ -268,7 +273,7 @@ class RiviumSyncConfigTest {
             Pair(ConflictChoice.USE_MERGED, merged)
         }
 
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .conflictResolver(resolver)
             .build()
 
@@ -279,7 +284,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `maxSyncRetries accepts valid positive value`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .maxSyncRetries(5)
             .build()
 
@@ -288,7 +293,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `maxSyncRetries accepts zero for no retries`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .maxSyncRetries(0)
             .build()
 
@@ -297,7 +302,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `maxSyncRetries defaults to 3`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .build()
 
         assertThat(config.maxSyncRetries).isEqualTo(3)
@@ -305,7 +310,7 @@ class RiviumSyncConfigTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `maxSyncRetries rejects negative value`() {
-        RiviumSyncConfig.Builder("nl_test_abc123")
+        RiviumSyncConfig.Builder("rv_live_abc123")
             .maxSyncRetries(-1)
             .build()
     }
@@ -314,7 +319,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `builder methods return builder for chaining`() {
-        val builder = RiviumSyncConfig.Builder("nl_test_abc123")
+        val builder = RiviumSyncConfig.Builder("rv_live_abc123")
 
         val result = builder
             .debugMode(true)
@@ -333,7 +338,7 @@ class RiviumSyncConfigTest {
     fun `full configuration with all options`() {
         val resolver = ConflictResolver { Pair(ConflictChoice.USE_SERVER, null) }
 
-        val config = RiviumSyncConfig.Builder("nl_live_production_key_123")
+        val config = RiviumSyncConfig.Builder("rv_live_production_key_123")
             .debugMode(true)
             .autoReconnect(true)
             .offlineEnabled(true)
@@ -344,7 +349,7 @@ class RiviumSyncConfigTest {
             .maxSyncRetries(10)
             .build()
 
-        assertThat(config.apiKey).isEqualTo("nl_live_production_key_123")
+        assertThat(config.apiKey).isEqualTo("rv_live_production_key_123")
         assertThat(config.debugMode).isTrue()
         assertThat(config.autoReconnect).isTrue()
         assertThat(config.offlineEnabled).isTrue()
@@ -359,18 +364,18 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `builder static method creates new builder`() {
-        val builder = RiviumSyncConfig.builder("nl_test_abc123")
+        val builder = RiviumSyncConfig.builder("rv_live_abc123")
 
         assertThat(builder).isNotNull()
     }
 
     @Test
     fun `builder static method allows configuration`() {
-        val config = RiviumSyncConfig.builder("nl_test_abc123")
+        val config = RiviumSyncConfig.builder("rv_live_abc123")
             .debugMode(true)
             .build()
 
-        assertThat(config.apiKey).isEqualTo("nl_test_abc123")
+        assertThat(config.apiKey).isEqualTo("rv_live_abc123")
         assertThat(config.debugMode).isTrue()
     }
 
@@ -378,7 +383,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `config is immutable after creation`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .build()
 
@@ -389,12 +394,12 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `configs with same values are equal`() {
-        val config1 = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config1 = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .offlineCacheSizeMb(50)
             .build()
 
-        val config2 = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config2 = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .offlineCacheSizeMb(50)
             .build()
@@ -404,11 +409,11 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `configs with different values are not equal`() {
-        val config1 = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config1 = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .build()
 
-        val config2 = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config2 = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(false)
             .build()
 
@@ -419,7 +424,7 @@ class RiviumSyncConfigTest {
 
     @Test
     fun `later builder calls override earlier ones`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .debugMode(false) // Override
             .offlineCacheSizeMb(50)

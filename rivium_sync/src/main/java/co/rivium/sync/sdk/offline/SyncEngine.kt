@@ -36,6 +36,20 @@ internal class SyncEngine(
     private val _isOnline = MutableStateFlow(false)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
+    /** Set once the first connection attempt has reported, either way. */
+    @Volatile
+    private var connectionStateKnown = false
+
+    /**
+     * True only when a connection attempt has actually reported that we are
+     * offline. [isOnline] starts false, so before the first report it cannot
+     * tell "not connected yet" from "offline" - and reads that trusted it
+     * served the local cache at every app launch, including rows deleted
+     * elsewhere since. Reads should try the network unless this is true.
+     */
+    val isKnownOffline: Boolean
+        get() = connectionStateKnown && !_isOnline.value
+
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
 
@@ -71,6 +85,7 @@ internal class SyncEngine(
      * Called when connection state changes
      */
     fun onConnectionStateChanged(connected: Boolean) {
+        connectionStateKnown = true
         _isOnline.value = connected
         RiviumSyncLogger.i("SyncEngine: Connection state changed to $connected")
 

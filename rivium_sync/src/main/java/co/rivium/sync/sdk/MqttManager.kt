@@ -8,6 +8,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * MQTT Manager for realtime data synchronization
@@ -19,6 +21,9 @@ internal class MqttManager(
     private val apiClient: ApiClient
 ) {
     private var connectionListener: ConnectionListener? = null
+
+    /** Project the API key belongs to, learned from POST /connections/token. */
+    private var projectId: String? = null
     // Track subscriptions locally so we can subscribe before connection and bridge PNMessage -> String callback
     private val subscriptions = ConcurrentHashMap<String, CopyOnWriteArrayList<(String) -> Unit>>()
     private val clientId: String = "rivium_sync_${UUID.randomUUID().toString().take(8)}"
@@ -38,6 +43,14 @@ internal class MqttManager(
     // Hold a reference to the PNSocket we added listeners to
     private var socket: PNSocket? = null
 
+    // The socket's own autoReconnect only covers a socket that exists. If the
+    // token request fails (e.g. the app started offline) there is no socket yet,
+    // so without this the SDK stayed "connecting" forever after the network
+    // came back. These drive a retry of the whole connect, token included.
+    @Volatile private var wantConnected = false
+    @Volatile private var tokenRetryAttempt = 0
+    private var tokenRetry: ScheduledFuture<*>? = null
+
     interface ConnectionListener {
         fun onConnected()
         fun onDisconnected(cause: Throwable?)
@@ -50,6 +63,13 @@ internal class MqttManager(
 
     fun connect(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
         RiviumSyncLogger.i("MqttManager.connect() called, socket=${socket != null}, isConnected=${isConnected()}")
+        wantConnected = true
+        cancelTokenRetry()
+        tokenRetryAttempt = 0
+        connectInternal(onSuccess, onError)
+    }
+
+    private fun connectInternal(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
 
         if (socket?.isConnected() == true) {
             RiviumSyncLogger.d("Already connected")
@@ -63,6 +83,8 @@ internal class MqttManager(
             try {
                 RiviumSyncLogger.d("Fetching MQTT token...")
                 val tokenResponse = apiClient.fetchMqttToken()
+                tokenRetryAttempt = 0
+                projectId = tokenResponse.projectId
                 RiviumSyncLogger.d("MQTT token obtained, token length=${tokenResponse.token.length}")
 
                 // Close any existing socket to prevent orphaned MQTT connections
@@ -133,13 +155,40 @@ internal class MqttManager(
 
             } catch (e: Exception) {
                 RiviumSyncLogger.e("Failed to initialize PN Protocol", e)
-                mainHandler.post { onError(e) }
+                val firstFailure = tokenRetryAttempt == 0
+                if (firstFailure) {
+                    // Tell the app once per failure streak, not on every retry.
+                    mainHandler.post { onError(e) }
+                    connectionListener?.onConnectionFailed(e)
+                }
+                scheduleTokenRetry(onSuccess, onError)
             }
         }
     }
 
+    private fun scheduleTokenRetry(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
+        if (!config.autoReconnect || !wantConnected) return
+        val delayMs = (TOKEN_RETRY_BASE_MS shl tokenRetryAttempt.coerceAtMost(4))
+            .coerceAtMost(TOKEN_RETRY_MAX_MS)
+        tokenRetryAttempt++
+        RiviumSyncLogger.i("Connect failed; retrying in ${delayMs}ms (attempt $tokenRetryAttempt)")
+        tokenRetry = executor.schedule({
+            // disconnect() may have run while we waited.
+            if (wantConnected) connectInternal(onSuccess, onError)
+        }, delayMs, TimeUnit.MILLISECONDS)
+    }
+
+    private fun cancelTokenRetry() {
+        tokenRetry?.cancel(false)
+        tokenRetry = null
+    }
+
     fun disconnect() {
         RiviumSyncLogger.i("MqttManager.disconnect() called, subscriptions=${subscriptions.keys}, pnListeners=${pnListeners.keys}")
+        // A pending retry must not bring the connection back after the app
+        // asked for it to close.
+        wantConnected = false
+        cancelTokenRetry()
         try {
             subscriptions.clear()
             pnListeners.clear()
@@ -219,7 +268,7 @@ internal class MqttManager(
                 .persist(retained)
                 .build()
             socket?.dispatch(message)
-            RiviumSyncLogger.d("Published to $topic: $payload")
+            RiviumSyncLogger.d("Published to $topic (${payload.length} bytes)")
         } catch (e: Exception) {
             RiviumSyncLogger.e("Failed to publish to $topic", e)
         }
@@ -270,21 +319,29 @@ internal class MqttManager(
     }
 
     /**
-     * Generate topic for collection changes
+     * Topic for collection changes.
+     *
+     * `rivium_sync/{projectId}/{databaseName}/{collectionName}/changes` - the
+     * names the app uses, under the project id from POST /connections/token, so
+     * the same database name in two projects cannot collide. The broker grants
+     * a client only its own `rivium_sync/{projectId}/#`.
      */
     fun collectionTopic(databaseId: String, collectionId: String): String {
-        return "rivium_sync/$databaseId/$collectionId/changes"
+        return "rivium_sync/${projectId ?: "unknown"}/$databaseId/$collectionId/changes"
     }
 
-    /**
-     * Generate topic for document changes
-     */
+    /** Topic for one document's changes. */
     fun documentTopic(databaseId: String, collectionId: String, documentId: String): String {
-        return "rivium_sync/$databaseId/$collectionId/$documentId"
+        return "rivium_sync/${projectId ?: "unknown"}/$databaseId/$collectionId/$documentId"
     }
 
     inner class SubscriptionHandle(
         val topic: String,
         val callback: (String) -> Unit
     )
+
+    companion object {
+        private const val TOKEN_RETRY_BASE_MS = 2_000L
+        private const val TOKEN_RETRY_MAX_MS = 30_000L
+    }
 }

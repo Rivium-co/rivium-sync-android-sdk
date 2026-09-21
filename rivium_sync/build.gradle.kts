@@ -6,6 +6,12 @@ plugins {
 }
 
 android {
+    testOptions {
+        // Android stubs return defaults instead of throwing, so classes that
+        // create a Handler (MqttManager) can be unit-tested on the JVM.
+        unitTests.isReturnDefaultValues = true
+    }
+
     namespace = "co.rivium.sync.sdk"
     compileSdk = 34
 

@@ -118,13 +118,13 @@ class ApiClientTest {
 
     @Test
     fun `RiviumSyncConfig builder creates valid config`() {
-        val config = RiviumSyncConfig.Builder("nl_test_abc123")
+        val config = RiviumSyncConfig.Builder("rv_live_abc123")
             .debugMode(true)
             .offlineEnabled(true)
             .offlineCacheSizeMb(50)
             .build()
 
-        assertThat(config.apiKey).isEqualTo("nl_test_abc123")
+        assertThat(config.apiKey).isEqualTo("rv_live_abc123")
         assertThat(config.debugMode).isTrue()
         assertThat(config.offlineEnabled).isTrue()
         assertThat(config.offlineCacheSizeMb).isEqualTo(50)
@@ -142,7 +142,7 @@ class ApiClientTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `RiviumSyncConfig builder rejects negative cache size`() {
-        RiviumSyncConfig.Builder("nl_test_abc123")
+        RiviumSyncConfig.Builder("rv_live_abc123")
             .offlineCacheSizeMb(-1)
             .build()
     }

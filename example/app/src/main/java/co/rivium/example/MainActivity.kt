@@ -42,10 +42,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializeRiviumSync() {
         try {
-            val config = RiviumSyncConfig.builder(AppConfig.apiKey)
+            val builder = RiviumSyncConfig.builder(AppConfig.apiKey)
                 .offlineEnabled(true)
                 .debugMode(true)
-                .build()
+
+            // With a token provider, `auth.uid` in Security Rules is the user your
+            // backend named, and it cannot be forged. Without one the SDK falls back
+            // to a client-chosen id, which a project using "Require signed user
+            // tokens" refuses - so only wire it up when we can actually mint one.
+            if (DemoTokenMinter.isConfigured) {
+                builder.userTokenProvider { DemoTokenMinter.fetchToken() }
+                Log.d(TAG, "Signed user tokens enabled (demo minter)")
+            } else {
+                Log.w(TAG, "No demo server secret in local.properties - using unsigned identity")
+            }
+
+            val config = builder.build()
 
             RiviumSync.initialize(applicationContext, config)
             Log.d(TAG, "RiviumSync SDK initialized")

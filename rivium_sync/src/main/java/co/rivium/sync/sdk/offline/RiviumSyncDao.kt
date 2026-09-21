@@ -63,6 +63,17 @@ interface RiviumSyncDao {
     @Query("DELETE FROM sync_documents WHERE id = :documentId")
     suspend fun deleteDocument(documentId: String)
 
+    /** Ids in a collection whose cached copy matches the server. */
+    @Query("""
+        SELECT id FROM sync_documents
+        WHERE databaseId = :databaseId AND collectionId = :collectionId AND syncStatus = 'SYNCED'
+    """)
+    suspend fun getSyncedIds(databaseId: String, collectionId: String): List<String>
+
+    /** Deletes only rows still SYNCED, so a local edit made meanwhile survives. */
+    @Query("DELETE FROM sync_documents WHERE id IN (:ids) AND syncStatus = 'SYNCED'")
+    suspend fun deleteSyncedDocuments(ids: List<String>)
+
     /**
      * Delete all documents in a collection
      */

@@ -5,7 +5,11 @@ import co.rivium.sync.sdk.SyncDocument
 import co.rivium.sync.sdk.SyncListener
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import co.rivium.sync.sdk.ApiClient
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 /**
  * Unit tests for SyncEngine
@@ -337,5 +341,40 @@ class SyncEngineTest {
 
         assertThat(states).hasSize(8)
         assertThat(states.last()).isEqualTo(SyncState.IDLE)
+    }
+
+    // ==================== Known-offline (reads at launch) ====================
+
+    private fun engine(): SyncEngine {
+        val store: LocalStorageManager = mock()
+        whenever(store.getPendingCountFlow()).thenReturn(flowOf(0))
+        return SyncEngine(apiClient = mock<ApiClient>(), localStore = store)
+    }
+
+    /**
+     * isOnline starts false, so reads that trusted it served the local cache at
+     * every launch - an empty list on a fresh install, rows deleted elsewhere
+     * after that. Before the first connection report we do not know we are
+     * offline, and reads must still try the server.
+     */
+    @Test
+    fun `is not known offline before the first connection report`() {
+        val engine = engine()
+        assertThat(engine.isOnline.value).isFalse()
+        assertThat(engine.isKnownOffline).isFalse()
+    }
+
+    @Test
+    fun `is known offline once a connection attempt reports offline`() {
+        val engine = engine()
+        engine.onConnectionStateChanged(false)
+        assertThat(engine.isKnownOffline).isTrue()
+    }
+
+    @Test
+    fun `is not known offline while connected`() {
+        val engine = engine()
+        engine.onConnectionStateChanged(true)
+        assertThat(engine.isKnownOffline).isFalse()
     }
 }

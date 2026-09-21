@@ -6,12 +6,16 @@ import co.rivium.sync.sdk.offline.ConflictStrategy
 /**
  * Configuration for RiviumSync SDK
  *
- * @param apiKey Your RiviumSync API key from the Rivium Console (rv_live_xxx or rv_test_xxx)
+ * @param apiKey Your RiviumSync API key from the Rivium Console (rv_live_xxx)
  */
 data class RiviumSyncConfig private constructor(
     val apiKey: String,
     /** Optional user/device identifier for Security Rules (used as auth.uid) */
     val userId: String?,
+    /** Signed user token, if the app already holds one at init. */
+    val userToken: String?,
+    /** Supplies a signed user token on demand; see [UserTokenStore]. */
+    val userTokenProvider: (() -> String?)?,
     internal val apiUrl: String,
     internal val syncHost: String,
     internal val syncPort: Int,
@@ -52,13 +56,15 @@ data class RiviumSyncConfig private constructor(
         /**
          * Create a new RiviumSync configuration
          *
-         * @param apiKey Your API key from Rivium Console (rv_live_xxx or rv_test_xxx)
+         * @param apiKey Your API key from Rivium Console (rv_live_xxx)
          */
         fun builder(apiKey: String): Builder = Builder(apiKey)
     }
 
     class Builder(private val apiKey: String) {
         private var userId: String? = null
+        private var userToken: String? = null
+        private var userTokenProvider: (() -> String?)? = null
         private var debugMode: Boolean = false
         private var autoReconnect: Boolean = true
         private var offlineEnabled: Boolean = false
@@ -73,6 +79,22 @@ data class RiviumSyncConfig private constructor(
          * If not set, the SDK auto-generates a stable device ID.
          */
         fun userId(userId: String) = apply { this.userId = userId }
+
+        /**
+         * A signed user token, minted by YOUR backend with its server secret
+         * (`POST /users/token`). This is what makes `auth.uid` in Security Rules
+         * trustworthy: unlike [userId], a client cannot forge it.
+         *
+         * Prefer [userTokenProvider] so the SDK can refresh it by itself.
+         */
+        fun userToken(token: String) = apply { this.userToken = token }
+
+        /**
+         * Called on a background thread whenever the SDK needs a user token -
+         * at first use, shortly before expiry, and after the server reports one
+         * expired. Fetch it from your own backend endpoint.
+         */
+        fun userTokenProvider(provider: () -> String?) = apply { this.userTokenProvider = provider }
 
         /**
          * Enable debug logging
@@ -128,12 +150,14 @@ data class RiviumSyncConfig private constructor(
 
         fun build(): RiviumSyncConfig {
             require(apiKey.isNotBlank()) { "API key cannot be empty" }
-            require(apiKey.startsWith("rv_live_") || apiKey.startsWith("rv_test_") || apiKey.startsWith("nl_live_") || apiKey.startsWith("nl_test_")) {
-                "Invalid API key format. Must start with 'rv_live_' or 'rv_test_'"
+            require(apiKey.startsWith("rv_live_")) {
+                "Invalid API key format. Must start with 'rv_live_'"
             }
             return RiviumSyncConfig(
                 apiKey = apiKey,
                 userId = userId,
+                userToken = userToken,
+                userTokenProvider = userTokenProvider,
                 apiUrl = SYNC_API_URL,
                 syncHost = SYNC_HOST,
                 syncPort = SYNC_PORT,

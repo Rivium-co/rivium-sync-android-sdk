@@ -28,9 +28,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Stand-in for YOUR backend, debug builds only. It lets this example
+            // mint a signed user token without running a server. A real app must
+            // never hold the server secret: fetch the token from your backend.
+            buildConfigField("String", "DEMO_SERVER_SECRET", "\"${localProperties.getProperty("riviumsync.demoServerSecret", "")}\"")
+            buildConfigField("String", "DEMO_USER_ID", "\"${localProperties.getProperty("riviumsync.demoUserId", "android-demo-user")}\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Always empty in release, whatever local.properties says.
+            buildConfigField("String", "DEMO_SERVER_SECRET", "\"\"")
+            buildConfigField("String", "DEMO_USER_ID", "\"\"")
         }
     }
 

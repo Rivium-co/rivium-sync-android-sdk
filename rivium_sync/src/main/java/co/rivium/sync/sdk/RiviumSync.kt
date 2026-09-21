@@ -38,10 +38,22 @@ class RiviumSync(
     /** Resolved userId for Security Rules (auth.uid) */
     val userId: String
 
+    /**
+     * The signed user token the SDK sends.
+     *
+     * Call `sync.userTokens.set(token)` after your app signs a user in or
+     * refreshes their token; pass a provider in the config to let the SDK
+     * refresh by itself.
+     */
+    val userTokens: UserTokenStore
+        get() = apiClient.userTokens
+
     init {
         RiviumSyncLogger.debugMode = config.debugMode
         userId = getOrCreateUserId(context)
         apiClient = ApiClient(config, userId)
+        config.userToken?.let { apiClient.userTokens.set(it) }
+        config.userTokenProvider?.let { apiClient.userTokens.provider = it }
         mqttManager = MqttManager(context.applicationContext, config, apiClient)
 
         // Initialize offline components if enabled
@@ -76,6 +88,9 @@ class RiviumSync(
             }
 
             override fun onConnectionFailed(cause: Throwable) {
+                // A failed connect means we are offline for now; the MqttManager
+                // keeps retrying and onConnected flips this back.
+                syncEngine?.onConnectionStateChanged(false)
                 connectionListener?.onConnectionFailed(cause)
             }
         })

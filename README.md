@@ -12,7 +12,7 @@ Realtime database SDK for Android with offline-first sync powered by pn-protocol
 
 ```kotlin
 dependencies {
-    implementation("co.rivium:rivium-sync-android:0.1.0")
+    implementation("co.rivium:rivium-sync-android:0.2.0")
 }
 ```
 
@@ -20,9 +20,30 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'co.rivium:rivium-sync-android:0.1.0'
+    implementation 'co.rivium:rivium-sync-android:0.2.0'
 }
 ```
+
+## Verified user identity
+
+Security Rules check `auth.uid`. The API key ships inside your app, so the app
+cannot be trusted to say who the user is - only your own server can. Have your
+backend mint a short-lived user token and give the SDK a provider:
+
+```kotlin
+val config = RiviumSyncConfig.builder("rv_live_your_api_key")
+    .userTokenProvider { myBackend.fetchSyncToken() } // called off the main thread
+    .build()
+```
+
+The SDK asks for a token when it needs one and again before the old one
+expires. Your backend mints it with your project's server secret, which must
+stay on your server and never ship in an app.
+
+If your project has **Require signed user tokens** turned on in the Console, a
+token provider is required; without it, requests are refused.
+
+See `example/` for a working setup.
 
 ## Documentation
 
