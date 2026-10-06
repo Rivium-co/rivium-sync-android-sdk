@@ -7,7 +7,10 @@ package co.rivium.example
  * 1. Edit this file directly (not recommended for production)
  * 2. Add to local.properties:
  *    riviumsync.apiKey=your-api-key
- *    riviumsync.databaseId=your-database-id
+ *    riviumsync.databaseId=my-app
+ *
+ * `riviumsync.databaseId` takes the database NAME exactly as shown in Rivium
+ * Console (e.g. `my-app`), not its UUID - realtime updates only arrive for names.
  */
 object AppConfig {
     // These are read from BuildConfig (set via local.properties or build.gradle.kts)

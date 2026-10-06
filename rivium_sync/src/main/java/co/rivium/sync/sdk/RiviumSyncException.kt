@@ -7,7 +7,13 @@ sealed class RiviumSyncException(message: String, cause: Throwable? = null) : Ex
     
     class NotInitializedException : RiviumSyncException("RiviumSync SDK not initialized. Call RiviumSync.initialize() first.")
     
-    class NetworkException(message: String, cause: Throwable? = null) : RiviumSyncException(message, cause)
+    open class NetworkException(message: String, cause: Throwable? = null) : RiviumSyncException(message, cause)
+
+    /**
+     * The project requires a signed user token and the request carried none.
+     * Not a network failure: nothing changes until the app supplies a token.
+     */
+    class UserTokenRequiredException(message: String) : NetworkException(message)
     
     class AuthenticationException(message: String) : RiviumSyncException(message)
     

@@ -85,6 +85,9 @@ internal class ApiClient(
             }
             // The server's short error message only, never the body.
             RiviumSyncLogger.d("API Response (${response.code}): ${errorMsg.take(200)}")
+            if (response.code == 401 && responseBody.contains("token_required")) {
+                throw RiviumSyncException.UserTokenRequiredException(errorMsg)
+            }
             throw RiviumSyncException.NetworkException(errorMsg)
         }
 

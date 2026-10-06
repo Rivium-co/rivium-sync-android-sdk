@@ -24,7 +24,7 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "RIVIUM_SYNC_API_KEY", "\"${localProperties.getProperty("riviumsync.apiKey", "YOUR_API_KEY_HERE")}\"")
-        buildConfigField("String", "RIVIUM_SYNC_DATABASE_ID", "\"${localProperties.getProperty("riviumsync.databaseId", "YOUR_DATABASE_ID_HERE")}\"")
+        buildConfigField("String", "RIVIUM_SYNC_DATABASE_ID", "\"${localProperties.getProperty("riviumsync.databaseId", "YOUR_DATABASE_NAME_HERE")}\"")
     }
 
     buildTypes {

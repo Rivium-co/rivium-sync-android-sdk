@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit
 internal class MqttManager(
     private val context: Context,
     private val config: RiviumSyncConfig,
-    private val apiClient: ApiClient
+    private val apiClient: ApiClient,
+    /** Who the user token is for right now; null when there is no token. */
+    private val currentUser: () -> String? = { apiClient.userTokens.currentUser() }
 ) {
     private var connectionListener: ConnectionListener? = null
 
@@ -51,10 +53,21 @@ internal class MqttManager(
     @Volatile private var tokenRetryAttempt = 0
     private var tokenRetry: ScheduledFuture<*>? = null
 
+    // The project requires a signed user token and the app has none yet (no
+    // one is signed in). That is not a failure and retrying cannot fix it: the
+    // connect is parked here until the app supplies a token.
+    @Volatile var awaitingUserToken = false
+        private set
+
+    // The user the open socket was authorised as, to notice a different one.
+    @Volatile private var socketUser: String? = null
+
     interface ConnectionListener {
         fun onConnected()
         fun onDisconnected(cause: Throwable?)
         fun onConnectionFailed(cause: Throwable)
+        /** Connect is parked until the app supplies a user token. */
+        fun onAwaitingUserToken() {}
     }
 
     fun setConnectionListener(listener: ConnectionListener) {
@@ -64,9 +77,39 @@ internal class MqttManager(
     fun connect(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
         RiviumSyncLogger.i("MqttManager.connect() called, socket=${socket != null}, isConnected=${isConnected()}")
         wantConnected = true
+        awaitingUserToken = false
         cancelTokenRetry()
         tokenRetryAttempt = 0
         connectInternal(onSuccess, onError)
+    }
+
+    /**
+     * The app set, cleared or refreshed its user token. Connect if that is what
+     * the SDK was waiting for; reconnect if the socket belongs to another user.
+     * A new token for the same user changes nothing here.
+     */
+    fun onUserMayHaveChanged() {
+        if (!wantConnected) return
+        executor.execute {
+            if (!wantConnected) return@execute
+            val user = try { currentUser() } catch (e: Exception) { null }
+            if (awaitingUserToken) {
+                if (user == null) return@execute
+                RiviumSyncLogger.i("User token available; connecting")
+                awaitingUserToken = false
+                connectInternal({}, {})
+            } else if (socket != null && user != socketUser) {
+                RiviumSyncLogger.i("Signed-in user changed; reconnecting")
+                cancelTokenRetry()
+                tokenRetryAttempt = 0
+                // Keep `subscriptions`: they are subscribed again on connect.
+                try { socket?.close() } catch (e: Exception) { RiviumSyncLogger.e("Error closing socket", e) }
+                socket = null
+                hasSubscribedOnce = false
+                pnListeners.clear()
+                connectInternal({}, {})
+            }
+        }
     }
 
     private fun connectInternal(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
@@ -83,8 +126,10 @@ internal class MqttManager(
             try {
                 RiviumSyncLogger.d("Fetching MQTT token...")
                 val tokenResponse = apiClient.fetchMqttToken()
+                socketUser = try { currentUser() } catch (e: Exception) { null }
                 tokenRetryAttempt = 0
                 projectId = tokenResponse.projectId
+                adoptProjectTopics()
                 RiviumSyncLogger.d("MQTT token obtained, token length=${tokenResponse.token.length}")
 
                 // Close any existing socket to prevent orphaned MQTT connections
@@ -153,6 +198,14 @@ internal class MqttManager(
                 socket!!.open()
                 mainHandler.post { onSuccess() }
 
+            } catch (e: RiviumSyncException.UserTokenRequiredException) {
+                // Nobody is signed in yet. Wait for the app's token instead of
+                // retrying; connect() itself has not failed.
+                RiviumSyncLogger.i("This project requires a user token; realtime connects when one is set")
+                awaitingUserToken = true
+                tokenRetryAttempt = 0
+                connectionListener?.onAwaitingUserToken()
+                mainHandler.post { onSuccess() }
             } catch (e: Exception) {
                 RiviumSyncLogger.e("Failed to initialize PN Protocol", e)
                 val firstFailure = tokenRetryAttempt == 0
@@ -188,6 +241,7 @@ internal class MqttManager(
         // A pending retry must not bring the connection back after the app
         // asked for it to close.
         wantConnected = false
+        awaitingUserToken = false
         cancelTokenRetry()
         try {
             subscriptions.clear()
@@ -232,24 +286,49 @@ internal class MqttManager(
      * Unsubscribe from a topic
      */
     fun unsubscribe(handle: SubscriptionHandle) {
-        val callbacks = subscriptions[handle.topic]
+        // A handle made before the project id was known still names the
+        // placeholder topic; its callbacks have moved to the real one.
+        val topic = if (subscriptions.containsKey(handle.topic)) handle.topic else projectTopic(handle.topic)
+        val callbacks = subscriptions[topic]
         callbacks?.remove(handle.callback)
-        RiviumSyncLogger.i("MqttManager.unsubscribe: topic=${handle.topic}, remainingCallbacks=${callbacks?.size ?: 0}")
+        RiviumSyncLogger.i("MqttManager.unsubscribe: topic=$topic, remainingCallbacks=${callbacks?.size ?: 0}")
 
         // Detach from pn-protocol if no more callbacks for this topic
         if (callbacks?.isEmpty() == true) {
-            subscriptions.remove(handle.topic)
-            pnListeners.remove(handle.topic)
+            subscriptions.remove(topic)
+            pnListeners.remove(topic)
             try {
                 if (isConnected()) {
-                    socket?.detach(handle.topic)
-                    RiviumSyncLogger.d("Detached from channel: ${handle.topic}")
+                    socket?.detach(topic)
+                    RiviumSyncLogger.d("Detached from channel: $topic")
                 }
             } catch (e: Exception) {
-                RiviumSyncLogger.e("Failed to detach from channel: ${handle.topic}", e)
+                RiviumSyncLogger.e("Failed to detach from channel: $topic", e)
             }
         }
     }
+
+    /** [topic] under the real project id, if it was built before that was known. */
+    private fun projectTopic(topic: String): String {
+        val id = projectId ?: return topic
+        return if (topic.startsWith(UNKNOWN_PROJECT_PREFIX)) "rivium_sync/$id/" + topic.removePrefix(UNKNOWN_PROJECT_PREFIX) else topic
+    }
+
+    /**
+     * A listener added before the first realtime token answer (the app was
+     * offline, or waiting for a user token) was keyed to a placeholder project.
+     * Nothing is published there: move it to the real topic before subscribing.
+     */
+    private fun adoptProjectTopics() {
+        subscriptions.keys.filter { it.startsWith(UNKNOWN_PROJECT_PREFIX) }.forEach { placeholder ->
+            val callbacks = subscriptions.remove(placeholder) ?: return@forEach
+            subscriptions.getOrPut(projectTopic(placeholder)) { CopyOnWriteArrayList() }.addAll(callbacks)
+            pnListeners.remove(placeholder)
+        }
+    }
+
+    /** Topics with at least one listener; for tests. */
+    internal fun subscribedTopics(): Set<String> = subscriptions.keys.toSet()
 
     /**
      * Publish a message to a topic
@@ -343,5 +422,6 @@ internal class MqttManager(
     companion object {
         private const val TOKEN_RETRY_BASE_MS = 2_000L
         private const val TOKEN_RETRY_MAX_MS = 30_000L
+        private const val UNKNOWN_PROJECT_PREFIX = "rivium_sync/unknown/"
     }
 }

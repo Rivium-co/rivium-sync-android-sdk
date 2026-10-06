@@ -4,8 +4,17 @@ package co.rivium.sync.sdk
  * Represents a collection in a RiviumSync database
  */
 interface SyncCollection {
+    /**
+     * The identifier this collection is addressed by. For a reference obtained
+     * with [SyncDatabase.collection] this is the collection NAME you passed.
+     */
     val id: String
     val name: String
+
+    /**
+     * The database this collection belongs to, as it was addressed - the
+     * database NAME passed to [RiviumSync.database].
+     */
     val databaseId: String
 
     // ==================== CRUD Operations ====================

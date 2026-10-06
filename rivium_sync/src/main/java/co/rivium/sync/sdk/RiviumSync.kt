@@ -55,6 +55,7 @@ class RiviumSync(
         config.userToken?.let { apiClient.userTokens.set(it) }
         config.userTokenProvider?.let { apiClient.userTokens.provider = it }
         mqttManager = MqttManager(context.applicationContext, config, apiClient)
+        apiClient.userTokens.onUserMayHaveChanged = { mqttManager.onUserMayHaveChanged() }
 
         // Initialize offline components if enabled
         if (config.offlineEnabled) {
@@ -93,10 +94,30 @@ class RiviumSync(
                 syncEngine?.onConnectionStateChanged(false)
                 connectionListener?.onConnectionFailed(cause)
             }
+
+            override fun onAwaitingUserToken() {
+                // Offline for now; onConnected flips this back once the app
+                // has set a token.
+                syncEngine?.onConnectionStateChanged(false)
+                onAwaitingUserToken?.invoke()
+            }
         })
 
         RiviumSyncLogger.i("RiviumSync SDK initialized")
     }
+
+    /**
+     * True while [connect] is waiting for a user token: the project requires
+     * signed user tokens and the app has not supplied one (no one is signed in
+     * yet). The SDK connects by itself once `userTokens.set(token)` is called,
+     * or after `userTokens.refresh()` when a provider is used.
+     */
+    val isAwaitingUserToken: Boolean
+        get() = mqttManager.awaitingUserToken
+
+    /** Called when [connect] starts waiting for a user token. */
+    @Volatile
+    var onAwaitingUserToken: (() -> Unit)? = null
 
     /**
      * Connection state listener
@@ -153,7 +174,18 @@ class RiviumSync(
     fun isConnected(): Boolean = mqttManager.isConnected()
 
     /**
-     * Get a database reference by ID
+     * Get a database reference by its NAME.
+     *
+     * ```kotlin
+     * val todos = riviumSync.database("my-app").collection("todos")
+     * ```
+     *
+     * @param databaseId The database NAME exactly as shown in Rivium Console
+     * (for example `"my-app"`), not its UUID. Realtime updates are published per
+     * database name, so listeners only receive changes when the database is
+     * addressed by name; a UUID still works for plain reads and writes but live
+     * updates never arrive. (The parameter keeps its historical name for
+     * source compatibility with named arguments.)
      */
     fun database(databaseId: String): SyncDatabase {
         return SyncDatabaseImpl(databaseId, "", apiClient, mqttManager, localStorageManager, syncEngine)
@@ -330,8 +362,10 @@ internal class SyncDatabaseImpl(
 
     override suspend fun createCollection(name: String): SyncCollection {
         val info = apiClient.createCollection(id, name)
+        // Keyed by name, like collection(): realtime topics carry names, so a
+        // UUID-keyed collection would never receive live updates.
         return SyncCollectionImpl(
-            id = info.id,
+            id = info.name,
             name = info.name,
             databaseId = id,
             apiClient = apiClient,
