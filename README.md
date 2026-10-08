@@ -12,7 +12,7 @@ Realtime database SDK for Android with offline-first sync.
 
 ```kotlin
 dependencies {
-    implementation("co.rivium:rivium-sync-android:0.2.1")
+    implementation("co.rivium:rivium-sync-android:0.2.2")
 }
 ```
 
@@ -20,7 +20,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'co.rivium:rivium-sync-android:0.2.1'
+    implementation 'co.rivium:rivium-sync-android:0.2.2'
 }
 ```
 

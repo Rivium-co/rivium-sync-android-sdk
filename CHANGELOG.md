@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Fixed a crash when the connection was closed while it was still opening,
+  for example on a device with no internet.
+
 ## 0.2.1
 
 - `connect()` can be called before sign-in when user tokens are required: the

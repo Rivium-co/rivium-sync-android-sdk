@@ -48,7 +48,7 @@ dependencies {
     if (useLocalProtocol) {
         implementation(project(":pn-protocol"))
     } else {
-        implementation("co.rivium:pn-protocol:0.2.0")
+        implementation("co.rivium:pn-protocol:0.2.2")
     }
 
     // HTTP Client
