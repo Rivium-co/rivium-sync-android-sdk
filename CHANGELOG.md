@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- With offline persistence on, writes made before the realtime connection is up
+  (or without calling `connect()`) now go to the server instead of waiting in
+  the local queue. They are queued only when the device is known to be offline.
+
 ## 0.2.2
 
 - Fixed a crash when the connection was closed while it was still opening,

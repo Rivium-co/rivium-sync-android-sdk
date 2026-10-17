@@ -37,7 +37,9 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun addWithOfflineSupport(data: Map<String, Any?>): SyncDocument {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Write to the server unless the connection has reported offline - like reads. Before the first report
+        // (connect() not called yet, or still connecting) `isOnline` is false, which queued every write.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         if (isOnline) {
             // Online: Try server first
@@ -167,7 +169,9 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun updateWithOfflineSupport(documentId: String, data: Map<String, Any?>): SyncDocument {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Write to the server unless the connection has reported offline - like reads. Before the first report
+        // (connect() not called yet, or still connecting) `isOnline` is false, which queued every write.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         // Get current version for conflict detection
         val existing = localStorageManager?.getDocument(documentId)
@@ -225,7 +229,9 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun setWithOfflineSupport(documentId: String, data: Map<String, Any?>): SyncDocument {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Write to the server unless the connection has reported offline - like reads. Before the first report
+        // (connect() not called yet, or still connecting) `isOnline` is false, which queued every write.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         if (isOnline) {
             return try {
@@ -280,7 +286,9 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun deleteWithOfflineSupport(documentId: String) {
-        val isOnline = syncEngine?.isOnline?.value ?: true
+        // Write to the server unless the connection has reported offline - like reads. Before the first report
+        // (connect() not called yet, or still connecting) `isOnline` is false, which queued every write.
+        val isOnline = syncEngine?.isKnownOffline != true
 
         // Get current version for sync
         val existing = localStorageManager?.getDocument(documentId)
