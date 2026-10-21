@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.4
 
 - Every request to the Sync API now carries `X-Rivium-SDK: android/<version>`,
   so the Console can show which SDK and version a project uses. Realtime
