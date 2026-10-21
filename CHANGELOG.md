@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Every request to the Sync API now carries `X-Rivium-SDK: android/<version>`,
+  so the Console can show which SDK and version a project uses. Realtime
+  (MQTT) is unchanged.
+- New optional `RiviumSyncConfig.Builder.wrapperSdk(name, version)` for
+  Rivium's Flutter and React Native wrappers: the header then reads
+  `flutter/<version> android/<version>`. Apps don't need it.
+- Added `RiviumSync.SDK_VERSION`; `RiviumSync.VERSION` now returns the real
+  SDK version instead of "1.0.0".
+
 ## 0.2.3
 
 - With offline persistence on, writes made before the realtime connection is up

@@ -19,6 +19,14 @@ android {
         minSdk = 21
 
         consumerProguardFiles("consumer-rules.pro")
+
+        // SDK version exposed at runtime (RiviumSync.SDK_VERSION, X-Rivium-SDK
+        // header). Same property as the published Maven version below.
+        buildConfigField("String", "SDK_VERSION", "\"${project.findProperty("VERSION_NAME") ?: "1.0.0"}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

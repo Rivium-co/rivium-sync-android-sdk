@@ -33,7 +33,16 @@ data class RiviumSyncConfig private constructor(
     val syncOnReconnect: Boolean,
     val conflictStrategy: ConflictStrategy,
     val conflictResolver: ConflictResolver?,
-    val maxSyncRetries: Int
+    val maxSyncRetries: Int,
+    /**
+     * Name of the official wrapper SDK (e.g. "flutter", "react-native") that
+     * embeds this native SDK; reported in the `X-Rivium-SDK` header together with
+     * [wrapperSdkVersion]. For Rivium's own wrappers only - apps leave it null.
+     * Both must be <=32 chars of [A-Za-z0-9._+-] or they are ignored.
+     */
+    val wrapperSdkName: String? = null,
+    /** Version of the official wrapper SDK. See [wrapperSdkName]. */
+    val wrapperSdkVersion: String? = null,
 ) {
     companion object {
         // Internal configuration - not exposed to SDK users
@@ -73,6 +82,8 @@ data class RiviumSyncConfig private constructor(
         private var conflictStrategy: ConflictStrategy = ConflictStrategy.SERVER_WINS
         private var conflictResolver: ConflictResolver? = null
         private var maxSyncRetries: Int = DEFAULT_MAX_SYNC_RETRIES
+        private var wrapperSdkName: String? = null
+        private var wrapperSdkVersion: String? = null
 
         /**
          * Set user/device identifier for Security Rules (used as auth.uid).
@@ -148,6 +159,16 @@ data class RiviumSyncConfig private constructor(
             this.maxSyncRetries = retries
         }
 
+        /**
+         * For Rivium's official wrapper SDKs (Flutter, React Native) only: the
+         * wrapper's name and version, reported instead of the native identity in
+         * the `X-Rivium-SDK` header. Apps should not call this.
+         */
+        fun wrapperSdk(name: String?, version: String?) = apply {
+            this.wrapperSdkName = name
+            this.wrapperSdkVersion = version
+        }
+
         fun build(): RiviumSyncConfig {
             require(apiKey.isNotBlank()) { "API key cannot be empty" }
             require(apiKey.startsWith("rv_live_")) {
@@ -174,7 +195,9 @@ data class RiviumSyncConfig private constructor(
                 syncOnReconnect = syncOnReconnect,
                 conflictStrategy = conflictStrategy,
                 conflictResolver = conflictResolver,
-                maxSyncRetries = maxSyncRetries
+                maxSyncRetries = maxSyncRetries,
+                wrapperSdkName = wrapperSdkName,
+                wrapperSdkVersion = wrapperSdkVersion,
             )
         }
     }

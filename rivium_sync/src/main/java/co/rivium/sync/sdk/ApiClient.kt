@@ -1,5 +1,6 @@
 package co.rivium.sync.sdk
 
+import co.rivium.sync.sdk.internal.SdkIdentity
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,9 @@ internal class ApiClient(
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
+    /** Sent as `X-Rivium-SDK` on every request (the wrapper's identity when one is set). */
+    internal val sdkHeaderValue: String = SdkIdentity.from(config).headerValue
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(config.connectionTimeout.toLong(), TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -42,6 +46,7 @@ internal class ApiClient(
             .url(url)
             .header("X-API-Key", config.apiKey)
             .header("Content-Type", "application/json")
+            .header(SdkIdentity.HEADER, sdkHeaderValue)
 
         // A signed token decides who the caller is; the plain userId header is
         // only a fallback, and a project with requireSignedTokens refuses it.

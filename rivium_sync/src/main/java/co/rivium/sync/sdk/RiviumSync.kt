@@ -326,9 +326,15 @@ class RiviumSync(
         fun isInitialized(): Boolean = instance != null
 
         /**
-         * SDK version
+         * SDK version (the published Maven version), also sent to the backend
+         * in the `X-Rivium-SDK` header.
          */
-        const val VERSION = "1.0.0"
+        const val SDK_VERSION: String = BuildConfig.SDK_VERSION
+
+        /**
+         * SDK version. Same value as [SDK_VERSION] (it used to say "1.0.0").
+         */
+        const val VERSION: String = BuildConfig.SDK_VERSION
     }
 }
 
