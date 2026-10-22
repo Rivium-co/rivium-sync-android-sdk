@@ -5,13 +5,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MqttEndpointTest {
-    private val default = MqttEndpoint("mqtt-sync.rivium.co", 1884, false)
+    private val default = MqttEndpoint("mqtt-sync.rivium.co", 8885, true)
 
     @Test
-    fun `uses the server's endpoint when it is valid`() {
+    fun `uses the server's endpoint when it is valid and encrypted`() {
         assertEquals(MqttEndpoint("mqtt-sync.rivium.co", 8885, true), MqttEndpoint.resolve("mqtt-sync.rivium.co", 8885, true, default))
         assertEquals(MqttEndpoint("rivium.co", 443, true), MqttEndpoint.resolve("Rivium.co ", 443, true, default))
+    }
+
+    @Test
+    fun `never connects unencrypted, whatever the server answers`() {
         assertEquals(default, MqttEndpoint.resolve("mqtt-sync.rivium.co", 1884, false, default))
+        assertEquals(default, MqttEndpoint.resolve("other.rivium.co", 1884, false, default))
+        assertEquals(true, default.useTls)
+        assertEquals(MqttEndpoint("mqtt-sync.rivium.co", 8885, true), MqttEndpoint(RiviumSyncConfig.SYNC_HOST, RiviumSyncConfig.SYNC_PORT, RiviumSyncConfig.SYNC_USE_TLS))
     }
 
     @Test

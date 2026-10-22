@@ -47,11 +47,10 @@ data class RiviumSyncConfig private constructor(
     companion object {
         // Internal configuration - not exposed to SDK users
         internal const val SYNC_API_URL = "https://sync.rivium.co"
-        // TCP connection (DNS-only mode in Cloudflare for mqtt-sync subdomain)
-        // Uses pn-protocol which wraps Paho MQTT - TCP works better on Android
+        // Realtime is always encrypted (MQTT over TLS); there is no plain option.
         internal const val SYNC_HOST = "mqtt-sync.rivium.co"
-        internal const val SYNC_PORT = 1884
-        internal const val SYNC_USE_TLS = false
+        internal const val SYNC_PORT = 8885
+        internal const val SYNC_USE_TLS = true
         internal const val SYNC_USE_WEBSOCKET = false
         internal const val SYNC_WS_PATH = "/mqtt"
         private const val DEFAULT_RECONNECT_INTERVAL = 5000L

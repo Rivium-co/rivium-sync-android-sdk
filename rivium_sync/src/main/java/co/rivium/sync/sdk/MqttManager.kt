@@ -144,7 +144,7 @@ internal class MqttManager(
                 }
 
                 // The server says where to connect (it can move clients to an encrypted port); only a valid
-                // rivium.co endpoint is used, else the built-in one. There is no fallback from TLS to plain.
+                // encrypted rivium.co endpoint is used, else the built-in encrypted one. Never plain.
                 val endpoint = MqttEndpoint.resolve(
                     tokenResponse.mqtt?.host,
                     tokenResponse.mqtt?.port,
