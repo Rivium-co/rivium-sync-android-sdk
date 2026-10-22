@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8
+
+- With offline persistence on, `get()` returns null only when the document
+  does not exist. If the server can't be reached (or refuses) and the
+  document is not cached, it now throws the error instead of returning null,
+  so your app can tell "not found" from "couldn't load".
+
 ## 0.2.7
 
 - Release builds (R8 / ProGuard) work without rules in your app: the SDK now
