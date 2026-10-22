@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.5
+
+- Realtime connects where the Sync API tells it (host, port and whether the
+  connection is encrypted), so your project can move to encrypted realtime
+  (`mqtts`, port 8885) without an app update. Only a rivium.co endpoint is
+  accepted, otherwise the SDK uses its built-in one; it never falls back from
+  an encrypted connection to a plain one.
+- Added `THIRD_PARTY_NOTICES.md`.
+
 ## 0.2.4
 
 - Every request to the Sync API now carries `X-Rivium-SDK: android/<version>`,
