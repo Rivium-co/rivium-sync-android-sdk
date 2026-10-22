@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.7
+
+- Release builds (R8 / ProGuard) work without rules in your app: the SDK now
+  ships the rules Gson needs. Before, a minified build could fail with
+  "TypeToken must be created with a type argument".
+
 ## 0.2.6
 
 - Realtime is always encrypted. If the Sync API's answer is missing or not an
