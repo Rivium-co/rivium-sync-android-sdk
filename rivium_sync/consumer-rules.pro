@@ -18,15 +18,16 @@
     @com.google.gson.annotations.SerializedName <fields>;
 }
 
-# ---- RiviumSync SDK data classes (used by Gson reflection) ----
--keep class co.rivium.sync.sdk.MqttTokenResponse { *; }
--keep class co.rivium.sync.sdk.MqttConnectionInfo { *; }
--keep class co.rivium.sync.sdk.ApiResponse { *; }
--keep class co.rivium.sync.sdk.QueryParams { *; }
--keep class co.rivium.sync.sdk.QueryFilter { *; }
--keep class co.rivium.sync.sdk.DatabaseInfo { *; }
--keep class co.rivium.sync.sdk.CollectionInfo { *; }
--keep class co.rivium.sync.sdk.SyncDocument { *; }
+# ---- Gson generic types ----
+# `object : TypeToken<Map<String, Any?>>() {}` needs the generic signatures and the TypeToken subclasses; R8 (full
+# mode, the default since AGP 8) removes them, and release builds then fail with "TypeToken must be created with a
+# type argument".
+-keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
+-keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
+-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+
+# ---- RiviumSync SDK classes read and written by Gson ----
+-keep class co.rivium.sync.** { *; }
 
 # ---- Paho MQTT ----
 -keep class org.eclipse.paho.client.mqttv3.** { *; }
