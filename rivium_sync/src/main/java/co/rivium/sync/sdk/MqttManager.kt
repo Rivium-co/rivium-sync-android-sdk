@@ -1,5 +1,7 @@
 package co.rivium.sync.sdk
 
+import co.rivium.sync.sdk.internal.MqttEndpoint
+
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -141,19 +143,28 @@ internal class MqttManager(
                     pnListeners.clear()
                 }
 
+                // The server says where to connect (it can move clients to an encrypted port); only a valid
+                // rivium.co endpoint is used, else the built-in one. There is no fallback from TLS to plain.
+                val endpoint = MqttEndpoint.resolve(
+                    tokenResponse.mqtt?.host,
+                    tokenResponse.mqtt?.port,
+                    tokenResponse.mqtt?.useTls,
+                    MqttEndpoint(config.syncHost, config.syncPort, config.useTls),
+                )
+
                 val pnConfig = PNConfig.builder()
-                    .gateway(config.syncHost)
-                    .port(config.syncPort)
+                    .gateway(endpoint.host)
+                    .port(endpoint.port)
                     .clientId(clientId)
                     .auth(PNAuth.basic("jwt", tokenResponse.token))
                     .heartbeatInterval(config.keepAliveInterval)
                     .connectionTimeout(config.connectionTimeout)
                     .freshStart(true)
                     .autoReconnect(config.autoReconnect)
-                    .secure(config.useTls)
+                    .secure(endpoint.useTls)
                     .build()
 
-                RiviumSyncLogger.i("PNConfig: gateway=${config.syncHost}, port=${config.syncPort}, clientId=$clientId, secure=${config.useTls}, autoReconnect=${config.autoReconnect}")
+                RiviumSyncLogger.i("PNConfig: gateway=${endpoint.host}, port=${endpoint.port}, clientId=$clientId, secure=${endpoint.useTls}, autoReconnect=${config.autoReconnect}")
 
                 socket = PNSocket(pnConfig)
 
