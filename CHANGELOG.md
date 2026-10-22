@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6
+
+- Realtime is always encrypted. If the Sync API's answer is missing or not an
+  encrypted rivium.co endpoint, the SDK uses its built-in encrypted endpoint;
+  it never connects unencrypted.
+
 ## 0.2.5
 
 - Realtime connects where the Sync API tells it (host, port and whether the
