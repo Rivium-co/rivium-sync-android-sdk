@@ -94,8 +94,8 @@ internal class SyncCollectionImpl(
     }
 
     private suspend fun getWithOfflineSupport(documentId: String): SyncDocument? {
-        // Ask the server unless we know we are offline; a failure still falls
-        // back to the cache below.
+        // Ask the server unless we know we are offline; a failure falls back to the cached copy. With no cached copy
+        // the error is thrown: null means the document does not exist, never "could not reach the server".
         val isOnline = syncEngine?.isKnownOffline != true
 
         // Check local cache first
@@ -115,11 +115,14 @@ internal class SyncCollectionImpl(
                 }
                 doc
             } catch (e: Exception) {
+                if (cached == null) throw e
                 RiviumSyncLogger.w("Failed to get document online, using cached: ${e.message}")
                 cached
             }
         } else {
-            return cached
+            return cached ?: throw RiviumSyncException.NetworkException(
+                "Offline, and document '$documentId' is not in the local cache"
+            )
         }
     }
 
